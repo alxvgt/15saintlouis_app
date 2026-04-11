@@ -62,90 +62,33 @@ export async function GET(req) {
 
 export async function POST(req) {
     const body = await req.json();
-    const { action } = body;
+    console.log("📥 [POST] Body reçu:", JSON.stringify(body));
+    const { propId, roomId, from, to, override, minStay, numAvail } = body;
 
     try {
-        // ACTION : Bloquer des jours (override: blackout + numAvail: 0)
-        if (action === 'block') {
-            const { roomId, fromDate, toDate } = body;
-            console.log(`🚫 [BLOCK] roomId=${roomId} du ${fromDate} au ${toDate}`);
+        const payload = [
+            {
+                roomId: parseInt(roomId),
+                calendar: [
+                    {
+                        from,
+                        to,
+                        ...(override !== undefined ? { override, numAvail: override === 'blackout' ? 0 : undefined } : {}),
+                        ...(minStay !== undefined ? { minStay: parseInt(minStay) } : {}),
+                    }
+                ]
+            }
+        ];
 
-            const payload = [
-                {
-                    roomId: parseInt(roomId),
-                    calendar: [
-                        {
-                            from: fromDate,
-                            to: toDate,
-                            override: "blackout",
-                            numAvail: 0
-                        }
-                    ]
-                }
-            ];
+        console.log("📤 [POST] Payload Beds24:", JSON.stringify(payload));
 
-            const result = await beds24Fetch('/inventory/rooms/calendar', {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-            console.log("📦 [BLOCK] Réponse:", JSON.stringify(result, null, 2));
-            return NextResponse.json(result);
-        }
+        const result = await beds24Fetch('/inventory/rooms/calendar', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
 
-        // ACTION : Débloquer des jours (override: none, numAvail revient au max auto)
-        if (action === 'unblock') {
-            const { roomId, fromDate, toDate } = body;
-            console.log(`✅ [UNBLOCK] roomId=${roomId} du ${fromDate} au ${toDate}`);
-
-            const payload = [
-                {
-                    roomId: parseInt(roomId),
-                    calendar: [
-                        {
-                            from: fromDate,
-                            to: toDate,
-                            override: "none"
-                            // numAvail sera remis au max automatiquement par Beds24
-                        }
-                    ]
-                }
-            ];
-
-            const result = await beds24Fetch('/inventory/rooms/calendar', {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-            console.log("📦 [UNBLOCK] Réponse:", JSON.stringify(result, null, 2));
-            return NextResponse.json(result);
-        }
-
-        // ACTION : Modifier le minStay
-        if (action === 'setMinStay') {
-            const { roomId, fromDate, toDate, minStay } = body;
-            console.log(`📅 [MINSTAY] roomId=${roomId} du ${fromDate} au ${toDate} → ${minStay}j`);
-
-            const payload = [
-                {
-                    roomId: parseInt(roomId),
-                    calendar: [
-                        {
-                            from: fromDate,
-                            to: toDate,
-                            minStay: parseInt(minStay)
-                        }
-                    ]
-                }
-            ];
-
-            const result = await beds24Fetch('/inventory/rooms/calendar', {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-            console.log("📦 [MINSTAY] Réponse:", JSON.stringify(result, null, 2));
-            return NextResponse.json(result);
-        }
-
-        return NextResponse.json({ success: false, error: 'Action inconnue' }, { status: 400 });
+        console.log("📥 [POST] Réponse Beds24:", JSON.stringify(result));
+        return NextResponse.json({ success: true, result });
 
     } catch (error) {
         console.error("❌ Erreur POST Beds24:", error.message);

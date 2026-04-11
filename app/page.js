@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 
 function expandCalendarRanges(ranges) {
     const days = [];
@@ -35,15 +35,15 @@ function getDayStatus(day) {
 }
 
 const STATUS_COLORS = {
-    available: { bg: '#4ade80', text: '#064e3b' },
-    booked:    { bg: '#ef4444', text: '#ffffff' },
-    blocked:   { bg: '#374151', text: '#ffffff' },
+    available: {bg: '#4ade80', text: '#064e3b'},
+    booked: {bg: '#ef4444', text: '#ffffff'},
+    blocked: {bg: '#374151', text: '#ffffff'},
 };
 
 const STATUS_LABELS = {
     available: 'Libre',
-    booked:    'Réservé',
-    blocked:   'Bloqué',
+    booked: 'Réservé',
+    blocked: 'Bloqué',
 };
 
 export default function Dashboard() {
@@ -77,6 +77,7 @@ export default function Dashboard() {
                 setLoading(false);
             }
         }
+
         loadProperties();
     }, []);
 
@@ -121,10 +122,13 @@ export default function Dashboard() {
 
             console.log("📅 [DEBUG] Calendrier:", calJson);
             console.log("📅 [DEBUG] Bookings:", bookJson);
-            setRawCalendarDebug({ calendar: calJson, bookings: bookJson });
+            setRawCalendarDebug({calendar: calJson, bookings: bookJson});
 
             const ranges = calJson.data?.[0]?.calendar;
-            if (!ranges?.length) { setError("Calendrier vide."); return; }
+            if (!ranges?.length) {
+                setError("Calendrier vide.");
+                return;
+            }
 
             // Construire un map date -> statut booking
             const bookingMap = {}; // { '2026-04-10': 'confirmed' | 'black' | ... }
@@ -134,7 +138,7 @@ export default function Dashboard() {
                 const cur = new Date(ay, am - 1, ad);
                 const dep = new Date(dy, dm - 1, dd);
                 while (cur < dep) {
-                    const key = [cur.getFullYear(), String(cur.getMonth()+1).padStart(2,'0'), String(cur.getDate()).padStart(2,'0')].join('-');
+                    const key = [cur.getFullYear(), String(cur.getMonth() + 1).padStart(2, '0'), String(cur.getDate()).padStart(2, '0')].join('-');
                     bookingMap[key] = booking.status;
                     cur.setDate(cur.getDate() + 1);
                 }
@@ -173,16 +177,19 @@ export default function Dashboard() {
         try {
             let payload = {};
             if (actionMode === 'block') {
-                payload = { from: fromDate, to: toDate, override: 'blackout' };
+                payload = {from: fromDate, to: toDate, override: 'blackout'};
             } else if (actionMode === 'unblock') {
-                payload = { from: fromDate, to: toDate, override: null };
+                payload = {from: fromDate, to: toDate, override: 'none'};
             } else if (actionMode === 'setMinStay') {
-                payload = { from: fromDate, to: toDate, minStay: minStayInput };
+                payload = {from: fromDate, to: toDate, minStay: minStayInput};
+            } else if (actionMode === 'noCheckIn') {
+                payload = {from: fromDate, to: toDate, override: 'noCheckIn'};
             }
+
 
             const res = await fetch('/api/beds24', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     propId: selectedProp.id,
                     roomId: selectedRoomId,
@@ -226,7 +233,7 @@ export default function Dashboard() {
 
     const monthLabel = (key) => {
         const [y, m] = key.split('-');
-        return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(new Date(y, m - 1));
+        return new Intl.DateTimeFormat('fr-FR', {month: 'long', year: 'numeric'}).format(new Date(y, m - 1));
     };
 
     const firstDayOffset = (days) => {
@@ -237,20 +244,24 @@ export default function Dashboard() {
     };
 
     return (
-        <main style={{ padding: '2rem' }}>
+        <main style={{padding: '2rem'}}>
             {!selectedProp ? (
                 <div>
-                    <h1 style={{ marginBottom: '2rem', fontSize: '2rem', color: '#ffffff' }}>Le 15 Saint-Louis</h1>
+                    <h1 style={{marginBottom: '2rem', fontSize: '2rem', color: '#ffffff'}}>Le 15 Saint-Louis</h1>
 
-                    {error && <p style={{ color: '#ef4444', marginBottom: '1rem' }}>{error}</p>}
-                    {successMsg && <p style={{ color: '#4ade80', marginBottom: '1rem' }}>{successMsg}</p>}
+                    {error && <p style={{color: '#ef4444', marginBottom: '1rem'}}>{error}</p>}
+                    {successMsg && <p style={{color: '#4ade80', marginBottom: '1rem'}}>{successMsg}</p>}
 
                     {loading ? (
                         <p>Chargement...</p>
                     ) : properties.length === 0 ? (
                         <p>Aucun gîte trouvé.</p>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                            gap: '1.5rem'
+                        }}>
                             {properties.map((prop, idx) => (
                                 <div
                                     key={idx}
@@ -272,7 +283,7 @@ export default function Dashboard() {
                                         e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
                                     }}
                                 >
-                                    <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', color: '#1a202c' }}>
+                                    <h2 style={{margin: '0 0 0.5rem 0', fontSize: '1.25rem', color: '#1a202c'}}>
                                         {prop.name}
                                     </h2>
                                     <button
@@ -302,46 +313,122 @@ export default function Dashboard() {
 
             ) : (
                 <div>
-                    <h1 style={{ marginBottom: '1rem', fontSize: '1.5rem', color: '#ffffff', cursor: 'pointer' }} onClick={handleGoBack}>
+                    <h1 style={{marginBottom: '1rem', fontSize: '1.5rem', color: '#ffffff', cursor: 'pointer'}}
+                        onClick={handleGoBack}>
                         ← Retour
                     </h1>
-                    <h2 style={{ marginBottom: '1rem', color: '#ffffff' }}>{selectedProp.name}</h2>
+                    <h2 style={{marginBottom: '1rem', color: '#ffffff'}}>{selectedProp.name}</h2>
 
                     {loading ? <p>Chargement du calendrier...</p> : (
                         <>
                             {calendarDays.length > 0 && (
-                                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem', marginBottom: '1.5rem' }}>
-                                    <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.85rem', color: '#475569' }}>
+                                <div style={{
+                                    backgroundColor: '#f8fafc',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '12px',
+                                    padding: '1rem',
+                                    marginBottom: '1.5rem'
+                                }}>
+                                    <p style={{margin: '0 0 0.75rem 0', fontSize: '0.85rem', color: '#475569'}}>
                                         {selectedDates.length === 0
                                             ? '👆 Clique sur des jours pour les sélectionner, puis choisis une action'
                                             : `${selectedDates.length} jour(s) sélectionné(s)`}
                                     </p>
-                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        <button onClick={() => setActionMode('block')} disabled={selectedDates.length === 0}
-                                                style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer', backgroundColor: actionMode === 'block' ? '#1a202c' : '#e2e8f0', color: actionMode === 'block' ? '#fff' : '#1a202c', fontSize: '0.85rem', opacity: selectedDates.length === 0 ? 0.5 : 1 }}>
+                                    <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center'}}>
+                                        <button onClick={() => setActionMode('block')}
+                                                disabled={selectedDates.length === 0}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    borderRadius: '6px',
+                                                    border: 'none',
+                                                    cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer',
+                                                    backgroundColor: actionMode === 'block' ? '#1a202c' : '#e2e8f0',
+                                                    color: actionMode === 'block' ? '#fff' : '#1a202c',
+                                                    fontSize: '0.85rem',
+                                                    opacity: selectedDates.length === 0 ? 0.5 : 1
+                                                }}>
                                             ⚫ Bloquer
                                         </button>
-                                        <button onClick={() => setActionMode('unblock')} disabled={selectedDates.length === 0}
-                                                style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer', backgroundColor: actionMode === 'unblock' ? '#4ade80' : '#e2e8f0', color: actionMode === 'unblock' ? '#064e3b' : '#1a202c', fontSize: '0.85rem', opacity: selectedDates.length === 0 ? 0.5 : 1 }}>
+                                        <button onClick={() => setActionMode('unblock')}
+                                                disabled={selectedDates.length === 0}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    borderRadius: '6px',
+                                                    border: 'none',
+                                                    cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer',
+                                                    backgroundColor: actionMode === 'unblock' ? '#4ade80' : '#e2e8f0',
+                                                    color: actionMode === 'unblock' ? '#064e3b' : '#1a202c',
+                                                    fontSize: '0.85rem',
+                                                    opacity: selectedDates.length === 0 ? 0.5 : 1
+                                                }}>
                                             🟢 Débloquer
                                         </button>
-                                        <button onClick={() => setActionMode('setMinStay')} disabled={selectedDates.length === 0}
-                                                style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer', backgroundColor: actionMode === 'setMinStay' ? '#3b82f6' : '#e2e8f0', color: actionMode === 'setMinStay' ? '#fff' : '#1a202c', fontSize: '0.85rem', opacity: selectedDates.length === 0 ? 0.5 : 1 }}>
+                                        <button onClick={() => setActionMode('noCheckIn')}
+                                                disabled={selectedDates.length === 0}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    borderRadius: '6px',
+                                                    border: 'none',
+                                                    cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer',
+                                                    backgroundColor: actionMode === 'noCheckIn' ? '#f97316' : '#e2e8f0',
+                                                    color: actionMode === 'noCheckIn' ? '#fff' : '#1a202c',
+                                                    fontSize: '0.85rem',
+                                                    opacity: selectedDates.length === 0 ? 0.5 : 1
+                                                }}>
+                                            🚫 No Check-in
+                                        </button>
+                                        <button onClick={() => setActionMode('setMinStay')}
+                                                disabled={selectedDates.length === 0}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    borderRadius: '6px',
+                                                    border: 'none',
+                                                    cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer',
+                                                    backgroundColor: actionMode === 'setMinStay' ? '#3b82f6' : '#e2e8f0',
+                                                    color: actionMode === 'setMinStay' ? '#fff' : '#1a202c',
+                                                    fontSize: '0.85rem',
+                                                    opacity: selectedDates.length === 0 ? 0.5 : 1
+                                                }}>
                                             📅 Min Stay
                                         </button>
                                         {actionMode === 'setMinStay' && (
                                             <input type="number" min={1} max={365} value={minStayInput}
                                                    onChange={e => setMinStayInput(parseInt(e.target.value))}
-                                                   style={{ width: '60px', padding: '5px 8px', border: '1px solid #cbd5e0', borderRadius: '6px', fontSize: '0.85rem' }} />
+                                                   style={{
+                                                       width: '60px',
+                                                       padding: '5px 8px',
+                                                       border: '1px solid #cbd5e0',
+                                                       borderRadius: '6px',
+                                                       fontSize: '0.85rem'
+                                                   }}/>
                                         )}
                                         {actionMode && (
                                             <>
                                                 <button onClick={applyAction} disabled={saving}
-                                                        style={{ padding: '6px 16px', borderRadius: '6px', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', backgroundColor: '#3b82f6', color: '#fff', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                                                        style={{
+                                                            padding: '6px 16px',
+                                                            borderRadius: '6px',
+                                                            border: 'none',
+                                                            cursor: saving ? 'not-allowed' : 'pointer',
+                                                            backgroundColor: '#3b82f6',
+                                                            color: '#fff',
+                                                            fontSize: '0.85rem',
+                                                            fontWeight: 'bold'
+                                                        }}>
                                                     {saving ? '⏳ En cours...' : '✓ Appliquer'}
                                                 </button>
-                                                <button onClick={() => { setActionMode(null); setSelectedDates([]); }}
-                                                        style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e0', cursor: 'pointer', backgroundColor: '#fff', fontSize: '0.85rem' }}>
+                                                <button onClick={() => {
+                                                    setActionMode(null);
+                                                    setSelectedDates([]);
+                                                }}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid #cbd5e0',
+                                                            cursor: 'pointer',
+                                                            backgroundColor: '#fff',
+                                                            fontSize: '0.85rem'
+                                                        }}>
                                                     Annuler
                                                 </button>
                                             </>
@@ -351,21 +438,36 @@ export default function Dashboard() {
                             )}
 
                             {Object.entries(daysByMonth).map(([monthKey, days]) => (
-                                <div key={monthKey} style={{ marginBottom: '2rem' }}>
-                                    <h3 style={{ textTransform: 'capitalize', marginBottom: '0.75rem', fontSize: '1rem', color: '#ffffff' }}>
+                                <div key={monthKey} style={{marginBottom: '2rem'}}>
+                                    <h3 style={{
+                                        textTransform: 'capitalize',
+                                        marginBottom: '0.75rem',
+                                        fontSize: '1rem',
+                                        color: '#ffffff'
+                                    }}>
                                         {monthLabel(monthKey)}
                                     </h3>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '4px' }}>
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(7, 1fr)',
+                                        gap: '4px',
+                                        marginBottom: '4px'
+                                    }}>
                                         {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
-                                            <div key={i} style={{ textAlign: 'center', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 'bold' }}>{d}</div>
+                                            <div key={i} style={{
+                                                textAlign: 'center',
+                                                fontSize: '0.65rem',
+                                                color: '#94a3b8',
+                                                fontWeight: 'bold'
+                                            }}>{d}</div>
                                         ))}
                                     </div>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px'}}>
                                         {/* ✅ FIX : offset basé sur le 1er jour réel du mois dans les données */}
-                                        {Array.from({ length: firstDayOffset(days) }).map((_, i) => (
-                                            <div key={`empty-${i}`} />
+                                        {Array.from({length: firstDayOffset(days)}).map((_, i) => (
+                                            <div key={`empty-${i}`}/>
                                         ))}
 
                                         {days.map((day) => {
@@ -397,20 +499,30 @@ export default function Dashboard() {
                                                         position: 'relative',
                                                     }}
                                                 >
-                                                    <span style={{ fontSize: '5vw', fontWeight: 'bold',marginTop: '20%' }}>{dateObj.getDate()}</span>
+                                                    <span style={{
+                                                        fontSize: '5vw',
+                                                        fontWeight: 'bold',
+                                                        marginTop: '20%'
+                                                    }}>{dateObj.getDate()}</span>
+                                                    <span style={{
+                                                        fontSize: '2.25vw',
+                                                        opacity: 0.9,
+                                                        position: 'absolute',
+                                                        bottom: '0px',
+                                                        left: '0px',
+                                                        backgroundColor: 'rgb(255 255 255 / 0.3)',
+                                                        padding: '1px 3px',
+                                                        borderRadius: '3px',
+                                                        fontWeight: 'bold'
+                                                    }}>
                                                     {day.minStay && (
-                                                        <span style={{
-                                                            fontSize: '2.25vw',
-                                                            opacity: 0.9,
-                                                            position: 'absolute',
-                                                            bottom: '0px',
-                                                            left: '0px',
-                                                            backgroundColor: 'rgb(255 255 255 / 0.3)',
-                                                            padding: '1px 3px',
-                                                            borderRadius: '3px',
-                                                            fontWeight: 'bold'
-                                                        }}>{day.minStay}n</span>
+                                                        <span>{day.minStay}n</span>
                                                     )}
+                                                        {day.override === 'noCheckIn' && (
+                                                            <span style={{fontSize: '1.8vw'}}>❌</span>
+                                                        )}
+                                                    </span>
+
                                                 </div>
                                             );
                                         })}
@@ -419,28 +531,69 @@ export default function Dashboard() {
                             ))}
 
                             {calendarDays.length > 0 && (
-                                <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', fontSize: '0.8rem', flexWrap: 'wrap' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                        <div style={{ width: '12px', height: '12px', backgroundColor: '#4ade80', borderRadius: '3px' }}></div> Libre
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    gap: '15px',
+                                    fontSize: '0.8rem',
+                                    flexWrap: 'wrap'
+                                }}>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                        <div style={{
+                                            width: '12px',
+                                            height: '12px',
+                                            backgroundColor: '#4ade80',
+                                            borderRadius: '3px'
+                                        }}></div>
+                                        Libre
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                        <div style={{ width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '3px' }}></div> Réservé
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                        <div style={{
+                                            width: '12px',
+                                            height: '12px',
+                                            backgroundColor: '#ef4444',
+                                            borderRadius: '3px'
+                                        }}></div>
+                                        Réservé
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                        <div style={{ width: '12px', height: '12px', backgroundColor: '#1a202c', borderRadius: '3px' }}></div> Bloqué
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                        <div style={{
+                                            width: '12px',
+                                            height: '12px',
+                                            backgroundColor: '#1a202c',
+                                            borderRadius: '3px'
+                                        }}></div>
+                                        Bloqué
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                        <div style={{ width: '12px', height: '12px', backgroundColor: '#f59e0b', borderRadius: '3px' }}></div> Sélectionné
+                                    <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                        <div style={{
+                                            width: '12px',
+                                            height: '12px',
+                                            backgroundColor: '#f59e0b',
+                                            borderRadius: '3px'
+                                        }}></div>
+                                        Sélectionné
                                     </div>
                                 </div>
                             )}
 
                             {rawCalendarDebug && (
-                                <details style={{ marginTop: '2rem', border: '1px dashed #94a3b8', borderRadius: '8px', padding: '1rem' }}>
-                                    <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#ffffff' }}>
+                                <details style={{
+                                    marginTop: '2rem',
+                                    border: '1px dashed #94a3b8',
+                                    borderRadius: '8px',
+                                    padding: '1rem'
+                                }}>
+                                    <summary style={{cursor: 'pointer', fontWeight: 'bold', color: '#ffffff'}}>
                                         🔍 Debug — Réponse brute API calendrier
                                     </summary>
-                                    <pre style={{ fontSize: '0.65rem', overflowX: 'auto', marginTop: '1rem', whiteSpace: 'pre-wrap', color: '#1e293b' }}>
+                                    <pre style={{
+                                        fontSize: '0.65rem',
+                                        overflowX: 'auto',
+                                        marginTop: '1rem',
+                                        whiteSpace: 'pre-wrap',
+                                        color: '#1e293b'
+                                    }}>
                                         {JSON.stringify(rawCalendarDebug, null, 2)}
                                     </pre>
                                 </details>
