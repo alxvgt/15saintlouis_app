@@ -1,0 +1,18 @@
+version: '3.1'
+
+services:
+    beds24_manager:
+        image: ghcr.io/alxvgt/beds24-manager:latest
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.beds24-manager.rule=Host(`app.gite-beaumont-saint-cyr.fr`)"
+            - "traefik.http.routers.beds24-manager.entrypoints=websecure"
+            - "traefik.http.routers.beds24-manager.tls=true"
+            - "traefik.http.routers.beds24-manager.tls.certresolver=mytlschallenge"
+            - "traefik.http.services.beds24-manager.loadbalancer.server.port=3000"
+        networks:
+            - shared-proxy
+
+networks:
+    shared-proxy:
+        external: true
