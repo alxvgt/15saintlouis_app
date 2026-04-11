@@ -323,11 +323,15 @@ export default function Dashboard() {
                         <>
                             {calendarDays.length > 0 && (
                                 <div style={{
+                                    position: 'sticky',
+                                    top: 0,
+                                    zIndex: 100,
                                     backgroundColor: '#f8fafc',
                                     border: '1px solid #e2e8f0',
                                     borderRadius: '12px',
                                     padding: '1rem',
-                                    marginBottom: '1.5rem'
+                                    marginBottom: '1.5rem',
+
                                 }}>
                                     <p style={{margin: '0 0 0.75rem 0', fontSize: '0.85rem', color: '#475569'}}>
                                         {selectedDates.length === 0

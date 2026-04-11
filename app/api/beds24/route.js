@@ -13,7 +13,7 @@ export async function GET(req) {
         if (propId && roomId && searchParams.get('type') === 'bookings') {
             const startDate = new Date().toISOString().split('T')[0];
             const end = new Date();
-            end.setDate(end.getDate() + 90);
+            end.setDate(end.getDate() + 180);
             const endDate = end.toISOString().split('T')[0];
 
             const endpoint = `/bookings?propertyId=${propId}&roomId=${roomId}&arrivalFrom=${startDate}&departureTo=${endDate}&status=confirmed&status=request&status=new&status=black`;
@@ -29,7 +29,7 @@ export async function GET(req) {
         if (propId && roomId) {
             const startDate = new Date().toISOString().split('T')[0];
             const end = new Date();
-            end.setDate(end.getDate() + 90);
+            end.setDate(end.getDate() + 180);
             const endDate = end.toISOString().split('T')[0];
 
             // On inclut : disponibilité, minStay, maxStay, et override (pour détecter blackout vs réservé)
