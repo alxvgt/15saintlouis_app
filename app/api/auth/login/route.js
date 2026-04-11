@@ -5,7 +5,7 @@ import { isoBase64URL } from '@simplewebauthn/server/helpers';
 
 function getConfs(url) {
     const RP_ID = process.env.RP_ID;
-    const ORIGIN = url.origin;
+    const ORIGIN = process.env.NEXTAUTH_URL || url.origin;
     return { RP_ID, ORIGIN };
 }
 
