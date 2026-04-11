@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
 
 function getConfs(url) {
-    const RP_ID = url.hostname === 'localhost' ? 'localhost' : 'app.gite-beaumont-saint-cyr.fr';
+    const RP_ID = process.env.RP_ID;
     const ORIGIN = url.origin;
     return { RP_ID, ORIGIN };
 }

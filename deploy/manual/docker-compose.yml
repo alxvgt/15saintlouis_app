@@ -1,0 +1,27 @@
+version: '3.1'
+
+services:
+    beds24_manager:
+        image: ghcr.io/alxvgt/beds24-manager:latest
+        environment:
+            - BEDS24_REFRESH_TOKEN=${BEDS24_REFRESH_TOKEN}
+            - NEXTAUTH_SECRET=${APP_SECRET}
+            - NEXTAUTH_URL=https://app.gite-beaumont-saint-cyr.fr
+            - DATABASE_URL=file:/app/data/auth.db
+            - NODE_ENV=production
+            - ALLOW_REGISTER=${ALLOW_REGISTER}
+        volumes:
+            - /var/beds24_manager_data:/app/data
+        deploy:
+            labels:
+                - "traefik.enable=true"
+                - "traefik.http.routers.beds24-manager.rule=Host(`app.gite-beaumont-saint-cyr.fr`)"
+                - "traefik.http.routers.beds24-manager.tls=true"
+                - "traefik.http.routers.beds24-manager.tls.certresolver=mytlschallenge"
+                - "traefik.http.services.beds24-manager.loadbalancer.server.port=3000"
+        networks:
+            - shared-proxy
+
+networks:
+    shared-proxy:
+        external: true
