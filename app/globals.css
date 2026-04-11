@@ -23,3 +23,15 @@ body {
     );
     min-height: 100vh;
 }
+
+@media (max-width: 640px) {
+    main {
+        padding: 0.5rem !important;
+    }
+}
+
+@media (min-width: 1240px) {
+    main {
+        padding: 5rem !important;
+    }
+}
