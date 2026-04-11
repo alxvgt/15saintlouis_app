@@ -1,7 +1,6 @@
 import { generateRegistrationOptions, verifyRegistrationResponse } from '@simplewebauthn/server';
 import { getDb } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import process from "next/dist/build/webpack/loaders/resolve-url-loader/lib/postcss";
 
 function getConfs(url) {
     const RP_ID = process.env.RP_ID;
