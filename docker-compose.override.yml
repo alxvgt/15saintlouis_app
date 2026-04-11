@@ -1,0 +1,13 @@
+version: '3.1'
+
+services:
+    beds24_manager:
+        # En local, on expose un port direct pour tester sans Traefik
+        ports:
+            - "3000:3000"
+        deploy:
+            labels: [] # On désactive les labels Traefik en local
+
+networks:
+    shared-proxy:
+        external: false # En local, on demande à Docker de le CRÉER s'il n'existe pas
