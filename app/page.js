@@ -375,7 +375,7 @@ export default function Dashboard() {
                                                     fontSize: '0.85rem',
                                                     opacity: selectedDates.length === 0 ? 0.5 : 1
                                                 }}>
-                                            🚫 No Check-in
+                                            ❌ No Check-in
                                         </button>
                                         <button onClick={() => setActionMode('setMinStay')}
                                                 disabled={selectedDates.length === 0}
