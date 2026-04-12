@@ -1,7 +1,15 @@
 'use client';
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
+import { useEffect, useState } from 'react';
 
 export default function LoginPage() {
+    const [registerAllowed, setRegisterAllowed] = useState(false);
+
+    useEffect(() => {
+        fetch('/api/auth/register')
+            .then(res => setRegisterAllowed(res.status !== 403))
+            .catch(() => setRegisterAllowed(false));
+    }, []);
     const handleRegister = async () => {
         try {
             const res = await fetch('/api/auth/register');
@@ -66,12 +74,14 @@ export default function LoginPage() {
                 Se connecter
             </button>
 
+            {registerAllowed && (
             <button
                 onClick={handleRegister}
                 style={{ padding: '10px 20px', cursor: 'pointer', backgroundColor: '#eaeaea', border: 'none', borderRadius: '5px' }}
             >
                 Enregistrer un nouvel appareil
             </button>
+    )}
         </div>
     );
 }

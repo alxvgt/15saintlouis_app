@@ -177,19 +177,19 @@ export default function Dashboard() {
         try {
             let payload = {};
             if (actionMode === 'block') {
-                payload = {from: fromDate, to: toDate, override: 'blackout'};
+                payload = { dates: selectedDates, override: 'blackout' };
             } else if (actionMode === 'unblock') {
-                payload = {from: fromDate, to: toDate, override: 'none'};
-            } else if (actionMode === 'setMinStay') {
-                payload = {from: fromDate, to: toDate, minStay: minStayInput};
+                payload = { dates: selectedDates, override: 'none' };
             } else if (actionMode === 'noCheckIn') {
-                payload = {from: fromDate, to: toDate, override: 'noCheckIn'};
+                payload = { dates: selectedDates, override: 'noCheckIn' };
+            } else if (actionMode === 'setMinStay') {
+                payload = { dates: selectedDates, minStay: minStayInput };
             }
 
 
             const res = await fetch('/api/beds24', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     propId: selectedProp.id,
                     roomId: selectedRoomId,
@@ -221,6 +221,11 @@ export default function Dashboard() {
         setRawCalendarDebug(null);
         setError(null);
         setSuccessMsg(null);
+    };
+
+    const handleLogout = async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/login';
     };
 
     const daysByMonth = calendarDays.reduce((acc, day) => {
@@ -313,10 +318,18 @@ export default function Dashboard() {
 
             ) : (
                 <div>
-                    <h1 style={{marginBottom: '1rem', fontSize: '1.5rem', color: '#ffffff', cursor: 'pointer'}}
-                        onClick={handleGoBack}>
-                        ← Retour
-                    </h1>
+                    <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
+                        <h1 style={{ cursor: 'pointer', fontSize: '1.5rem', margin: 0 }}
+                            onClick={handleGoBack}>
+                            ‹ Retour
+                        </h1>
+                        <button onClick={handleLogout} style={{ background: '#f1f5f9', border: '1px solid #cbd5e0', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer' }}>
+                            Déconnexion
+                        </button>
+                    </header>
+
+
+
                     <h2 style={{marginBottom: '1rem', color: '#ffffff'}}>{selectedProp.name}</h2>
 
                     {loading ? <p>Chargement du calendrier...</p> : (

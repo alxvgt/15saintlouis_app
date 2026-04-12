@@ -63,20 +63,18 @@ export async function GET(req) {
 export async function POST(req) {
     const body = await req.json();
     console.log("📥 [POST] Body reçu:", JSON.stringify(body));
-    const { propId, roomId, from, to, override, minStay, numAvail } = body;
+    const { propId, roomId, dates, override, minStay } = body;
 
     try {
         const payload = [
             {
                 roomId: parseInt(roomId),
-                calendar: [
-                    {
-                        from,
-                        to,
-                        ...(override !== undefined ? { override, numAvail: override === 'blackout' ? 0 : undefined } : {}),
-                        ...(minStay !== undefined ? { minStay: parseInt(minStay) } : {}),
-                    }
-                ]
+                calendar: dates.map(date => ({
+                    from: date,
+                    to: date,
+                    ...(override !== undefined ? { override, ...(override === 'blackout' ? { numAvail: 0 } : {}) } : {}),
+                    ...(minStay !== undefined ? { minStay: parseInt(minStay) } : {}),
+                }))
             }
         ];
 
