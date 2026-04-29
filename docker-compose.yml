@@ -13,3 +13,9 @@ services:
       - ALLOW_REGISTER=${ALLOW_REGISTER}
     volumes:
       - /var/beds24_manager_data:/app/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"      # Taille max par fichier de log
+        max-file: "3"        # Nombre de fichiers à conserver
+        compress: "true"     # Compression des logs anciens
