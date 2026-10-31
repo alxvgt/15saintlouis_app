@@ -1,6 +1,8 @@
 'use client';
 import {useEffect, useState} from 'react';
 
+import { priceForDate } from '@/lib/fixedPrices';
+
 function expandCalendarRanges(ranges) {
     const days = [];
     for (const range of ranges) {
@@ -19,6 +21,8 @@ function expandCalendarRanges(ranges) {
                 minStay: range.minStay ?? null,
                 maxStay: range.maxStay ?? null,
                 override: range.override ?? null,
+                price: null,
+                multiplier: range.multiplier ?? null,
             });
             current.setDate(current.getDate() + 1);
         }
@@ -40,6 +44,25 @@ const STATUS_COLORS = {
     blocked: {bg: '#374151', text: '#ffffff'},
 };
 
+// Beds24 renvoie le multiplicateur en coefficient (1 = prix normal, 1.06 = +6 %) ;
+// l'app l'affiche et le saisit en pourcentage (100 = prix normal, 106 = +6 %).
+function adjustmentPct(day) {
+    const m = Number(day.multiplier);
+    return Number.isFinite(m) && m > 0 ? Math.round(m * 100) : 100;
+}
+
+// Prix affiché = prix de base Beds24 × ajustement du jour
+function effectivePrice(day) {
+    if (day.price == null) return null;
+    const pct = adjustmentPct(day);
+    return pct === 100 ? day.price : Math.round(day.price * pct) / 100;
+}
+
+function formatPrice(p) {
+    if (p === null || p === undefined) return '';
+    return (Number.isInteger(p) ? String(p) : p.toFixed(2).replace('.', ',')) + '€';
+}
+
 const STATUS_LABELS = {
     available: 'Libre',
     booked: 'Réservé',
@@ -60,6 +83,10 @@ export default function Dashboard() {
     const [selectedDates, setSelectedDates] = useState([]);
     const [actionMode, setActionMode] = useState(null);
     const [minStayInput, setMinStayInput] = useState(2);
+    const [multiplierInput, setMultiplierInput] = useState('');
+    const [notesOpen, setNotesOpen] = useState(true); // bloc « * Notes » (accordéon)
+    const [noteInput, setNoteInput] = useState('');
+    const [notes, setNotes] = useState({}); // { 'YYYY-MM-DD': 'texte' }
 
     useEffect(() => {
         async function loadProperties() {
@@ -104,25 +131,39 @@ export default function Dashboard() {
                 return;
             }
             setSelectedRoomId(roomId);
-            await fetchCalendar(prop.id, roomId);
+            await Promise.all([fetchCalendar(prop.id, roomId), fetchNotes(roomId)]);
         } catch (err) {
             setError("Erreur : " + err.message);
             setLoading(false);
         }
     };
 
+    const fetchNotes = async (rId) => {
+        try {
+            const res = await fetch(`/api/notes?roomId=${rId}`);
+            const json = await res.json();
+            setNotes(json.success ? json.notes : {});
+        } catch (err) {
+            console.error('Erreur chargement notes', err);
+            setNotes({});
+        }
+    };
+
     const fetchCalendar = async (pId, rId) => {
         try {
-            const [calRes, bookRes] = await Promise.all([
+            const [calRes, bookRes, fixedRes] = await Promise.all([
                 fetch(`/api/beds24?propId=${pId}&roomId=${rId}`),
-                fetch(`/api/beds24?propId=${pId}&roomId=${rId}&type=bookings`)
+                fetch(`/api/beds24?propId=${pId}&roomId=${rId}&type=bookings`),
+                fetch(`/api/beds24?propId=${pId}&roomId=${rId}&type=fixedPrices`)
             ]);
             const calJson = await calRes.json();
             const bookJson = await bookRes.json();
+            const fixedJson = await fixedRes.json().catch(() => null);
+            const fixedRules = fixedJson?.success && Array.isArray(fixedJson.data) ? fixedJson.data : [];
 
             console.log("📅 [DEBUG] Calendrier:", calJson);
             console.log("📅 [DEBUG] Bookings:", bookJson);
-            setRawCalendarDebug({calendar: calJson, bookings: bookJson});
+            setRawCalendarDebug({calendar: calJson, bookings: bookJson, fixedPrices: fixedJson});
 
             const ranges = calJson.data?.[0]?.calendar;
             if (!ranges?.length) {
@@ -148,7 +189,8 @@ export default function Dashboard() {
             // Enrichir chaque jour avec le statut booking
             const enriched = expanded.map(day => ({
                 ...day,
-                bookingStatus: bookingMap[day.date] ?? null
+                bookingStatus: bookingMap[day.date] ?? null,
+                price: priceForDate(fixedRules, day.date)
             }));
 
             setCalendarDays(enriched);
@@ -165,6 +207,76 @@ export default function Dashboard() {
         );
     };
 
+    // Ouvre le mode prix / note en pré-remplissant avec la valeur existante si elle est commune aux jours sélectionnés
+    const chooseMode = (mode) => {
+        const days = calendarDays.filter(d => selectedDates.includes(d.date));
+        if (mode === 'setMultiplier') {
+            const ms = new Set(days.map(d => adjustmentPct(d)));
+            setMultiplierInput(ms.size === 1 ? String([...ms][0]) : '');
+        } else if (mode === 'note') {
+            const texts = new Set(selectedDates.map(d => notes[d] ?? ''));
+            setNoteInput(texts.size === 1 ? [...texts][0] : '');
+        }
+        setActionMode(mode);
+    };
+
+    // Résultat de l'ajustement saisi, affiché à côté du champ (une fourchette si la sélection mélange plusieurs prix de base)
+    const adjustmentResult = (() => {
+        if (actionMode !== 'setMultiplier') return null;
+        const m = Number(String(multiplierInput).replace(',', '.').replace('%', '').trim());
+        if (multiplierInput === '' || !Number.isInteger(m) || m < 25 || m > 250) return null;
+        const bases = calendarDays.filter(d => selectedDates.includes(d.date) && d.price != null).map(d => d.price);
+        if (bases.length === 0) return null;
+        const lo = Math.round(Math.min(...bases) * m) / 100;
+        const hi = Math.round(Math.max(...bases) * m) / 100;
+        return lo === hi ? formatPrice(lo) : `${formatPrice(lo)} – ${formatPrice(hi)}`;
+    })();
+
+    const btnStyle = (active, color) => ({
+        padding: '6px 12px',
+        borderRadius: '6px',
+        border: 'none',
+        cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer',
+        backgroundColor: active ? color : '#e2e8f0',
+        color: active ? '#fff' : '#1a202c',
+        fontSize: '0.85rem',
+        opacity: selectedDates.length === 0 ? 0.5 : 1
+    });
+
+    // Enregistre la note sur les jours sélectionnés ; un texte vide supprime la note
+    const saveNote = async (text) => {
+        const res = await fetch('/api/notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomId: String(selectedRoomId), dates: selectedDates, text }),
+        });
+        const json = await res.json();
+        if (json.success) {
+            setSuccessMsg(text.trim()
+                ? `✓ Note enregistrée sur ${selectedDates.length} jour(s)`
+                : `✓ Note supprimée sur ${selectedDates.length} jour(s)`);
+            setSelectedDates([]);
+            setActionMode(null);
+            await fetchNotes(selectedRoomId);
+        } else {
+            setError("Erreur note : " + (json.error || 'Réponse invalide'));
+        }
+    };
+
+    // Suppression directe de la note des jours sélectionnés (sans passer par « vider le champ + appliquer »)
+    const deleteNotes = async () => {
+        if (selectedDates.length === 0) return;
+        setSaving(true);
+        setError(null);
+        try {
+            await saveNote('');
+        } catch (err) {
+            setError("Erreur réseau : " + err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const applyAction = async () => {
         if (selectedDates.length === 0 || !actionMode) return;
         const sorted = [...selectedDates].sort();
@@ -175,6 +287,11 @@ export default function Dashboard() {
         setError(null);
 
         try {
+            if (actionMode === 'note') {
+                await saveNote(noteInput);
+                return;
+            }
+
             let payload = {};
             if (actionMode === 'block') {
                 payload = { dates: selectedDates, override: 'blackout' };
@@ -184,6 +301,13 @@ export default function Dashboard() {
                 payload = { dates: selectedDates, override: 'noCheckIn' };
             } else if (actionMode === 'setMinStay') {
                 payload = { dates: selectedDates, minStay: minStayInput };
+            } else if (actionMode === 'setMultiplier') {
+                const m = Number(String(multiplierInput).replace(',', '.').replace('%', '').trim());
+                if (multiplierInput === '' || !Number.isInteger(m) || m < 25 || m > 250) {
+                    setError("Ajustement invalide : entier entre 25 et 250 (100 = prix normal, 106 = +6 %)");
+                    return;
+                }
+                payload = { dates: selectedDates, multiplier: m };
             }
 
 
@@ -199,12 +323,15 @@ export default function Dashboard() {
 
             const json = await res.json();
             if (json.success) {
+                if (json.warnings?.length) {
+                    setError("Beds24 a répondu avec des avertissements : " + JSON.stringify(json.warnings));
+                }
                 setSuccessMsg(`✓ ${selectedDates.length} jour(s) modifié(s)`);
                 setSelectedDates([]);
                 setActionMode(null);
                 await fetchCalendar(selectedProp.id, selectedRoomId);
             } else {
-                setError("Erreur API : " + (json.message || 'Réponse invalide'));
+                setError("Erreur API : " + (json.error || json.message || 'Réponse invalide'));
             }
         } catch (err) {
             setError("Erreur réseau : " + err.message);
@@ -219,6 +346,7 @@ export default function Dashboard() {
         setSelectedDates([]);
         setActionMode(null);
         setRawCalendarDebug(null);
+        setNotes({});
         setError(null);
         setSuccessMsg(null);
     };
@@ -227,6 +355,11 @@ export default function Dashboard() {
         await fetch('/api/auth/logout', { method: 'POST' });
         window.location.href = '/login';
     };
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const upcomingNotes = Object.entries(notes)
+        .filter(([date]) => date >= todayStr)
+        .sort(([a], [b]) => a.localeCompare(b));
 
     const daysByMonth = calendarDays.reduce((acc, day) => {
         const [y, m] = day.date.split('-');
@@ -419,6 +552,59 @@ export default function Dashboard() {
                                                        fontSize: '0.85rem'
                                                    }}/>
                                         )}
+                                        <button onClick={() => chooseMode('setMultiplier')}
+                                                disabled={selectedDates.length === 0}
+                                                style={btnStyle(actionMode === 'setMultiplier', '#b45309')}>
+                                            ± Ajustement prix
+                                        </button>
+                                        {actionMode === 'setMultiplier' && (
+                                            <span style={{display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem'}}>
+                                                <input type="number" min={25} max={250} step={1} value={multiplierInput}
+                                                       placeholder="100"
+                                                       onChange={e => setMultiplierInput(e.target.value)}
+                                                       style={{
+                                                           width: '70px',
+                                                           padding: '5px 8px',
+                                                           border: '1px solid #cbd5e0',
+                                                           borderRadius: '6px',
+                                                           fontSize: '0.85rem'
+                                                       }}/>
+                                                <span style={{color: 'rgb(30, 41, 59)'}}>%</span>
+                                                {adjustmentResult && <strong style={{color: 'rgb(30, 41, 59)'}}>→ {adjustmentResult}</strong>}
+                                            </span>
+                                        )}
+                                        <button onClick={() => chooseMode('note')}
+                                                disabled={selectedDates.length === 0}
+                                                style={btnStyle(actionMode === 'note', '#7c3aed')}>
+                                            ⓘ Note
+                                        </button>
+                                        {actionMode === 'note' && (
+                                            <textarea value={noteInput} rows={2} maxLength={500}
+                                                      placeholder="Note interne"
+                                                      onChange={e => setNoteInput(e.target.value)}
+                                                      style={{
+                                                          flexBasis: '100%',
+                                                          padding: '6px 8px',
+                                                          border: '1px solid #cbd5e0',
+                                                          borderRadius: '6px',
+                                                          fontSize: '0.85rem',
+                                                          fontFamily: 'inherit'
+                                                      }}/>
+                                        )}
+                                        {actionMode === 'note' && selectedDates.some(d => notes[d]) && (
+                                            <button onClick={deleteNotes} disabled={saving}
+                                                    style={{
+                                                        padding: '6px 12px',
+                                                        borderRadius: '6px',
+                                                        border: 'none',
+                                                        cursor: saving ? 'wait' : 'pointer',
+                                                        backgroundColor: '#dc2626',
+                                                        color: '#fff',
+                                                        fontSize: '0.85rem'
+                                                    }}>
+                                                Supprimer
+                                            </button>
+                                        )}
                                         {actionMode && (
                                             <>
                                                 <button onClick={applyAction} disabled={saving}
@@ -451,6 +637,47 @@ export default function Dashboard() {
                                             </>
                                         )}
                                     </div>
+                                </div>
+                            )}
+
+                            {upcomingNotes.length > 0 && (
+                                <div style={{
+                                    marginBottom: '1.5rem',
+                                    backgroundColor: '#f8fafc',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '12px',
+                                    padding: '0.75rem 1rem',
+                                    color: '#1e293b',
+                                    fontSize: '0.85rem'
+                                }}>
+                                    <button
+                                        onClick={() => setNotesOpen(o => !o)}
+                                        aria-expanded={notesOpen}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            width: '100%',
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: 0,
+                                            cursor: 'pointer',
+                                            color: 'inherit',
+                                            fontSize: 'inherit',
+                                            fontFamily: 'inherit'
+                                        }}>
+                                        <strong>ⓘ Notes ({upcomingNotes.length})</strong>
+                                        <span aria-hidden="true">{notesOpen ? '▲' : '▼'}</span>
+                                    </button>
+                                    {notesOpen && (
+                                        <ul style={{margin: '0.5rem 0 0 0', paddingLeft: '1.2rem'}}>
+                                            {upcomingNotes.map(([date, text]) => {
+                                                const [y, m, d] = date.split('-').map(Number);
+                                                const label = new Intl.DateTimeFormat('fr-FR', {weekday: 'short', day: 'numeric', month: 'short'}).format(new Date(y, m - 1, d));
+                                                return <li key={date} style={{marginBottom: '4px'}}><strong>{label}</strong> — {text}</li>;
+                                            })}
+                                        </ul>
+                                    )}
                                 </div>
                             )}
 
@@ -498,7 +725,7 @@ export default function Dashboard() {
                                                 <div
                                                     key={day.date}
                                                     onClick={() => toggleDate(day.date)}
-                                                    title={`${day.date} — ${STATUS_LABELS[status]}${day.minStay ? ` — min: ${day.minStay}j` : ''}${day.override ? ` — override: ${day.override}` : ''}`}
+                                                    title={`${day.date} — ${STATUS_LABELS[status]}${day.minStay ? ` — min: ${day.minStay}j` : ''}${day.override ? ` — override: ${day.override}` : ''}${day.price != null ? ` — ${formatPrice(effectivePrice(day))}${adjustmentPct(day) !== 100 ? ` (prix de base ${formatPrice(day.price)}, ajustement ${adjustmentPct(day)}%)` : ''}` : ''}${notes[day.date] ? ` — * ${notes[day.date]}` : ''}`}
                                                     style={{
                                                         aspectRatio: '1/1',
                                                         backgroundColor: isSelected ? '#f59e0b' : colors.bg,
@@ -521,6 +748,32 @@ export default function Dashboard() {
                                                         fontWeight: 'bold',
                                                         marginTop: '20%'
                                                     }}>{dateObj.getDate()}</span>
+                                                    {notes[day.date] && (
+                                                        <span style={{
+                                                            position: 'absolute',
+                                                            top: '3px',
+                                                            right: '3px',
+                                                            fontSize: '2.5vw',
+                                                            fontWeight: 'bold',
+                                                            lineHeight: 1
+                                                        }}>ⓘ</span>
+                                                    )}
+                                                    {day.price != null && (
+                                                        <span style={{
+                                                            fontSize: '2vw',
+                                                            opacity: 0.9,
+                                                            position: 'absolute',
+                                                            top: '0px',
+                                                            left: '0px',
+                                                            backgroundColor: 'rgb(255 255 255 / 0.3)',
+                                                            padding: '1px 3px',
+                                                            borderRadius: '3px',
+                                                            fontWeight: 'bold',
+                                                            whiteSpace: 'nowrap'
+                                                        }}>
+                                                            {formatPrice(effectivePrice(day))}{adjustmentPct(day) > 100 ? '↑' : adjustmentPct(day) < 100 ? '↓' : ''}
+                                                        </span>
+                                                    )}
                                                     <span style={{
                                                         fontSize: '2.25vw',
                                                         opacity: 0.9,
