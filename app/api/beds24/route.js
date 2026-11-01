@@ -75,7 +75,8 @@ export async function POST(req) {
     const { propId, roomId, dates, override, minStay, multiplier } = body;
 
     // Ajustement de prix (multiplicateur du calendrier Beds24) : 25 à 250 (%), 100 = prix normal
-    if (multiplier !== undefined && (!Number.isInteger(Number(multiplier)) || Number(multiplier) < 25 || Number(multiplier) > 250)) {
+    // multiplier: null = suppression de l'ajustement (retour au prix normal)
+    if (multiplier !== undefined && multiplier !== null && (!Number.isInteger(Number(multiplier)) || Number(multiplier) < 25 || Number(multiplier) > 250)) {
         return NextResponse.json({ success: false, error: 'Ajustement de prix invalide (entier entre 25 et 250)' }, { status: 400 });
     }
 
@@ -89,7 +90,8 @@ export async function POST(req) {
                     ...(override !== undefined ? { override, ...(override === 'blackout' ? { numAvail: 0 } : {}) } : {}),
                     ...(minStay !== undefined ? { minStay: parseInt(minStay) } : {}),
                     // L'API Beds24 exprime le multiplicateur en coefficient (1 = prix normal, 1.06 = +6 %), pas en pourcentage
-                    ...(multiplier !== undefined ? { multiplier: Number(multiplier) / 100 } : {}),
+                    // Suppression (null) : Beds24 ignore null, "" et 1 ; seul 1.0001 remet l'ajustement à 100 % (affiché 100 % dans Beds24)
+                    ...(multiplier !== undefined ? { multiplier: multiplier === null ? 1.0001 : Number(multiplier) / 100 } : {}),
                 }))
             }
         ];

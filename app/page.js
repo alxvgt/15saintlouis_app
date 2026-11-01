@@ -58,6 +58,12 @@ function effectivePrice(day) {
     return pct === 100 ? day.price : Math.round(day.price * pct) / 100;
 }
 
+// Prix dans les cases du calendrier : arrondi à l'unité, précédé de « ~ » quand il y a eu arrondi
+function formatCellPrice(p) {
+    if (p === null || p === undefined) return '';
+    return (Number.isInteger(p) ? '' : '~') + Math.round(p) + '€';
+}
+
 function formatPrice(p) {
     if (p === null || p === undefined) return '';
     return (Number.isInteger(p) ? String(p) : p.toFixed(2).replace('.', ',')) + '€';
@@ -84,7 +90,7 @@ export default function Dashboard() {
     const [actionMode, setActionMode] = useState(null);
     const [minStayInput, setMinStayInput] = useState(2);
     const [multiplierInput, setMultiplierInput] = useState('');
-    const [notesOpen, setNotesOpen] = useState(true); // bloc « * Notes » (accordéon)
+    const [notesOpen, setNotesOpen] = useState(false); // bloc « * Notes » (accordéon)
     const [noteInput, setNoteInput] = useState('');
     const [notes, setNotes] = useState({}); // { 'YYYY-MM-DD': 'texte' }
 
@@ -232,13 +238,13 @@ export default function Dashboard() {
         return lo === hi ? formatPrice(lo) : `${formatPrice(lo)} – ${formatPrice(hi)}`;
     })();
 
-    const btnStyle = (active, color) => ({
+    const btnStyle = (active, color, activeText = '#fff') => ({
         padding: '6px 12px',
         borderRadius: '6px',
         border: 'none',
         cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer',
         backgroundColor: active ? color : '#e2e8f0',
-        color: active ? '#fff' : '#1a202c',
+        color: active ? activeText : '#1a202c',
         fontSize: '0.85rem',
         opacity: selectedDates.length === 0 ? 0.5 : 1
     });
@@ -277,6 +283,39 @@ export default function Dashboard() {
         }
     };
 
+    // Réinitialise une valeur du calendrier sur les jours sélectionnés (ajustement de prix ou séjour minimum)
+    const resetValue = async (extra, okMsg) => {
+        if (selectedDates.length === 0) return;
+        setSaving(true);
+        setError(null);
+        try {
+            const res = await fetch('/api/beds24', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ propId: selectedProp.id, roomId: selectedRoomId, dates: selectedDates, ...extra }),
+            });
+            const json = await res.json();
+            if (json.success) {
+                if (json.warnings?.length) {
+                    setError("Beds24 a répondu avec des avertissements : " + JSON.stringify(json.warnings));
+                }
+                setSuccessMsg(`✓ ${okMsg} sur ${selectedDates.length} jour(s)`);
+                setSelectedDates([]);
+                setActionMode(null);
+                await fetchCalendar(selectedProp.id, selectedRoomId);
+            } else {
+                setError("Erreur API : " + (json.error || json.message || 'Réponse invalide') + (json.detail ? ' — ' + JSON.stringify(json.detail) : ''));
+            }
+        } catch (err) {
+            setError("Erreur réseau : " + err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const removeAdjustment = () => resetValue({ multiplier: null }, 'Ajustement supprimé');
+    const removeMinStay = () => resetValue({ minStay: 1 }, 'Séjour minimum remis à 1');
+
     const applyAction = async () => {
         if (selectedDates.length === 0 || !actionMode) return;
         const sorted = [...selectedDates].sort();
@@ -307,7 +346,7 @@ export default function Dashboard() {
                     setError("Ajustement invalide : entier entre 25 et 250 (100 = prix normal, 106 = +6 %)");
                     return;
                 }
-                payload = { dates: selectedDates, multiplier: m };
+                payload = { dates: selectedDates, multiplier: m === 100 ? null : m }; // 100 % = pas d'ajustement : on supprime la valeur
             }
 
 
@@ -331,7 +370,7 @@ export default function Dashboard() {
                 setActionMode(null);
                 await fetchCalendar(selectedProp.id, selectedRoomId);
             } else {
-                setError("Erreur API : " + (json.error || json.message || 'Réponse invalide'));
+                setError("Erreur API : " + (json.error || json.message || 'Réponse invalide') + (json.detail ? ' — ' + JSON.stringify(json.detail) : ''));
             }
         } catch (err) {
             setError("Erreur réseau : " + err.message);
@@ -356,7 +395,8 @@ export default function Dashboard() {
         window.location.href = '/login';
     };
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const upcomingNotes = Object.entries(notes)
         .filter(([date]) => date >= todayStr)
         .sort(([a], [b]) => a.localeCompare(b));
@@ -484,130 +524,93 @@ export default function Dashboard() {
                                             ? '👆 Clique sur des jours pour les sélectionner, puis choisis une action'
                                             : `${selectedDates.length} jour(s) sélectionné(s)`}
                                     </p>
+                                    {/* Zone 1 : boutons d'actions */}
                                     <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center'}}>
-                                        <button onClick={() => setActionMode('block')}
-                                                disabled={selectedDates.length === 0}
-                                                style={{
-                                                    padding: '6px 12px',
-                                                    borderRadius: '6px',
-                                                    border: 'none',
-                                                    cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer',
-                                                    backgroundColor: actionMode === 'block' ? '#1a202c' : '#e2e8f0',
-                                                    color: actionMode === 'block' ? '#fff' : '#1a202c',
-                                                    fontSize: '0.85rem',
-                                                    opacity: selectedDates.length === 0 ? 0.5 : 1
-                                                }}>
-                                            ⚫ Bloquer
-                                        </button>
-                                        <button onClick={() => setActionMode('unblock')}
-                                                disabled={selectedDates.length === 0}
-                                                style={{
-                                                    padding: '6px 12px',
-                                                    borderRadius: '6px',
-                                                    border: 'none',
-                                                    cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer',
-                                                    backgroundColor: actionMode === 'unblock' ? '#4ade80' : '#e2e8f0',
-                                                    color: actionMode === 'unblock' ? '#043528' : '#1a202c',
-                                                    fontSize: '0.85rem',
-                                                    opacity: selectedDates.length === 0 ? 0.5 : 1
-                                                }}>
-                                            🟢 Débloquer
-                                        </button>
-                                        <button onClick={() => setActionMode('noCheckIn')}
-                                                disabled={selectedDates.length === 0}
-                                                style={{
-                                                    padding: '6px 12px',
-                                                    borderRadius: '6px',
-                                                    border: 'none',
-                                                    cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer',
-                                                    backgroundColor: actionMode === 'noCheckIn' ? '#f97316' : '#e2e8f0',
-                                                    color: actionMode === 'noCheckIn' ? '#fff' : '#1a202c',
-                                                    fontSize: '0.85rem',
-                                                    opacity: selectedDates.length === 0 ? 0.5 : 1
-                                                }}>
-                                            ❌ No Check-in
-                                        </button>
-                                        <button onClick={() => setActionMode('setMinStay')}
-                                                disabled={selectedDates.length === 0}
-                                                style={{
-                                                    padding: '6px 12px',
-                                                    borderRadius: '6px',
-                                                    border: 'none',
-                                                    cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer',
-                                                    backgroundColor: actionMode === 'setMinStay' ? '#3b82f6' : '#e2e8f0',
-                                                    color: actionMode === 'setMinStay' ? '#fff' : '#1a202c',
-                                                    fontSize: '0.85rem',
-                                                    opacity: selectedDates.length === 0 ? 0.5 : 1
-                                                }}>
-                                            📅 Min Stay
-                                        </button>
-                                        {actionMode === 'setMinStay' && (
-                                            <input type="number" min={1} max={365} value={minStayInput}
-                                                   onChange={e => setMinStayInput(parseInt(e.target.value))}
-                                                   style={{
-                                                       width: '60px',
-                                                       padding: '5px 8px',
-                                                       border: '1px solid #cbd5e0',
-                                                       borderRadius: '6px',
-                                                       fontSize: '0.85rem'
-                                                   }}/>
-                                        )}
-                                        <button onClick={() => chooseMode('setMultiplier')}
-                                                disabled={selectedDates.length === 0}
-                                                style={btnStyle(actionMode === 'setMultiplier', '#b45309')}>
-                                            ± Ajustement prix
-                                        </button>
-                                        {actionMode === 'setMultiplier' && (
-                                            <span style={{display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem'}}>
-                                                <input type="number" min={25} max={250} step={1} value={multiplierInput}
-                                                       placeholder="100"
-                                                       onChange={e => setMultiplierInput(e.target.value)}
-                                                       style={{
-                                                           width: '30px',
-                                                           padding: '5px 8px',
-                                                           border: '1px solid #cbd5e0',
-                                                           borderRadius: '6px',
-                                                           fontSize: '0.85rem',
-                                                           textAlign: 'center'
-                                                       }}/>
-                                                <span style={{color: 'rgb(30, 41, 59)'}}>%</span>
-                                                {adjustmentResult && <strong style={{color: 'rgb(30, 41, 59)'}}>→ {adjustmentResult}</strong>}
-                                            </span>
-                                        )}
-                                        <button onClick={() => chooseMode('note')}
-                                                disabled={selectedDates.length === 0}
-                                                style={btnStyle(actionMode === 'note', '#7c3aed')}>
-                                            ⓘ Note
-                                        </button>
-                                        {actionMode === 'note' && (
-                                            <textarea value={noteInput} rows={2} maxLength={500}
-                                                      placeholder="Note interne"
-                                                      onChange={e => setNoteInput(e.target.value)}
-                                                      style={{
-                                                          flexBasis: '100%',
-                                                          padding: '6px 8px',
-                                                          border: '1px solid #cbd5e0',
-                                                          borderRadius: '6px',
-                                                          fontSize: '0.85rem',
-                                                          fontFamily: 'inherit'
-                                                      }}/>
-                                        )}
-                                        {actionMode === 'note' && selectedDates.some(d => notes[d]) && (
-                                            <button onClick={deleteNotes} disabled={saving}
-                                                    style={{
-                                                        padding: '6px 12px',
-                                                        borderRadius: '6px',
-                                                        border: 'none',
-                                                        cursor: saving ? 'wait' : 'pointer',
-                                                        backgroundColor: '#dc2626',
-                                                        color: '#fff',
-                                                        fontSize: '0.85rem'
-                                                    }}>
-                                                Supprimer
+                                        {[
+                                            {mode: 'block', label: '⚫ Bloquer', color: '#1a202c'},
+                                            {mode: 'unblock', label: '🟢 Débloquer', color: '#4ade80', text: '#043528'},
+                                            {mode: 'noCheckIn', label: '❌ No Check-in', color: '#f97316'},
+                                            {mode: 'setMinStay', label: '📅 Min Stay', color: '#3b82f6'},
+                                            {mode: 'setMultiplier', label: '± Ajustement prix', color: '#b45309'},
+                                            {mode: 'note', label: 'ⓘ Note', color: '#7c3aed'},
+                                        ].map(a => (
+                                            <button key={a.mode} onClick={() => chooseMode(a.mode)}
+                                                    disabled={selectedDates.length === 0}
+                                                    style={btnStyle(actionMode === a.mode, a.color, a.text)}>
+                                                {a.label}
                                             </button>
-                                        )}
-                                        {actionMode && (
-                                            <>
+                                        ))}
+                                    </div>
+
+                                    {/* Zone 2 : saisie / validation (apparaît dès qu'une action est choisie) */}
+                                    {actionMode && (
+                                        <div style={{
+                                            marginTop: '0.75rem',
+                                            padding: '0.75rem',
+                                            backgroundColor: '#e0e7ff',
+                                            border: '1px solid #c7d2fe',
+                                            borderRadius: '8px',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '8px',
+                                            color: '#1e293b',
+                                            fontSize: '0.85rem'
+                                        }}>
+                                            {actionMode === 'block' && <span>Bloquer {selectedDates.length} jour(s)</span>}
+                                            {actionMode === 'unblock' && <span>Débloquer {selectedDates.length} jour(s)</span>}
+                                            {actionMode === 'noCheckIn' && <span>Interdire l'arrivée sur {selectedDates.length} jour(s)</span>}
+
+                                            {actionMode === 'setMinStay' && (
+                                                <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                                                    Séjour minimum
+                                                    <input type="number" min={1} max={365} value={minStayInput}
+                                                           onChange={e => setMinStayInput(parseInt(e.target.value))}
+                                                           style={{
+                                                               width: '60px',
+                                                               padding: '5px 8px',
+                                                               border: '1px solid #cbd5e0',
+                                                               borderRadius: '6px',
+                                                               fontSize: '0.85rem'
+                                                           }}/>
+                                                    nuit(s)
+                                                </label>
+                                            )}
+
+                                            {actionMode === 'setMultiplier' && (
+                                                <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                                                    <span>Ajustement</span>
+                                                    <input type="number" min={25} max={250} step={1} value={multiplierInput}
+                                                           placeholder="100"
+                                                           onChange={e => setMultiplierInput(e.target.value)}
+                                                           style={{
+                                                               width: '60px',
+                                                               padding: '5px 8px',
+                                                               border: '1px solid #cbd5e0',
+                                                               borderRadius: '6px',
+                                                               fontSize: '0.85rem',
+                                                               textAlign: 'center'
+                                                           }}/>
+                                                    <span>%</span>
+                                                    {adjustmentResult && <strong>→ {adjustmentResult}</strong>}
+                                                </div>
+                                            )}
+
+                                            {actionMode === 'note' && (
+                                                <textarea value={noteInput} rows={2} maxLength={500}
+                                                          placeholder="Note interne"
+                                                          onChange={e => setNoteInput(e.target.value)}
+                                                          style={{
+                                                              width: '100%',
+                                                              boxSizing: 'border-box',
+                                                              padding: '6px 8px',
+                                                              border: '1px solid #cbd5e0',
+                                                              borderRadius: '6px',
+                                                              fontSize: '0.85rem',
+                                                              fontFamily: 'inherit'
+                                                          }}/>
+                                            )}
+
+                                            <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center'}}>
                                                 <button onClick={applyAction} disabled={saving}
                                                         style={{
                                                             padding: '6px 16px',
@@ -621,6 +624,48 @@ export default function Dashboard() {
                                                         }}>
                                                     {saving ? '⏳ En cours...' : '✓ Appliquer'}
                                                 </button>
+                                                {actionMode === 'setMinStay' && selectedDates.some(d => calendarDays.find(c => c.date === d && c.minStay > 1)) && (
+                                                    <button onClick={removeMinStay} disabled={saving}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                borderRadius: '6px',
+                                                                border: 'none',
+                                                                cursor: saving ? 'wait' : 'pointer',
+                                                                backgroundColor: '#dc2626',
+                                                                color: '#fff',
+                                                                fontSize: '0.85rem'
+                                                            }}>
+                                                        Supprimer
+                                                    </button>
+                                                )}
+                                                {actionMode === 'setMultiplier' && selectedDates.some(d => calendarDays.find(c => c.date === d && adjustmentPct(c) !== 100)) && (
+                                                    <button onClick={removeAdjustment} disabled={saving}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                borderRadius: '6px',
+                                                                border: 'none',
+                                                                cursor: saving ? 'wait' : 'pointer',
+                                                                backgroundColor: '#dc2626',
+                                                                color: '#fff',
+                                                                fontSize: '0.85rem'
+                                                            }}>
+                                                        Supprimer
+                                                    </button>
+                                                )}
+                                                {actionMode === 'note' && selectedDates.some(d => notes[d]) && (
+                                                    <button onClick={deleteNotes} disabled={saving}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                borderRadius: '6px',
+                                                                border: 'none',
+                                                                cursor: saving ? 'wait' : 'pointer',
+                                                                backgroundColor: '#dc2626',
+                                                                color: '#fff',
+                                                                fontSize: '0.85rem'
+                                                            }}>
+                                                        Supprimer
+                                                    </button>
+                                                )}
                                                 <button onClick={() => {
                                                     setActionMode(null);
                                                     setSelectedDates([]);
@@ -635,9 +680,9 @@ export default function Dashboard() {
                                                         }}>
                                                     Annuler
                                                 </button>
-                                            </>
-                                        )}
-                                    </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -709,7 +754,7 @@ export default function Dashboard() {
                                         ))}
                                     </div>
 
-                                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px'}}>
+                                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px'}}>
                                         {/* ✅ FIX : offset basé sur le 1er jour réel du mois dans les données */}
                                         {Array.from({length: firstDayOffset(days)}).map((_, i) => (
                                             <div key={`empty-${i}`}/>
@@ -772,7 +817,7 @@ export default function Dashboard() {
                                                             fontWeight: 'bold',
                                                             whiteSpace: 'nowrap'
                                                         }}>
-                                                            {formatPrice(effectivePrice(day))}{adjustmentPct(day) > 100 ? '↑' : adjustmentPct(day) < 100 ? '↓' : ''}
+                                                            {formatCellPrice(effectivePrice(day))}{adjustmentPct(day) > 100 ? '↑' : adjustmentPct(day) < 100 ? '↓' : ''}
                                                         </span>
                                                     )}
                                                     <span style={{
@@ -790,7 +835,7 @@ export default function Dashboard() {
                                                         <span>{day.minStay}n</span>
                                                     )}
                                                         {day.override === 'noCheckIn' && (
-                                                            <span style={{fontSize: '1.8vw'}}>❌</span>
+                                                            <span style={{fontSize: '1.8vw', marginLeft: '0.3vw'}}>❌</span>
                                                         )}
                                                     </span>
 
