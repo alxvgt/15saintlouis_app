@@ -546,7 +546,7 @@ export default function Dashboard() {
                                     {actionMode && (
                                         <div style={{
                                             marginTop: '0.75rem',
-                                            padding: '0.75rem',
+                                            padding: '0.4rem',
                                             backgroundColor: '#e0e7ff',
                                             border: '1px solid #c7d2fe',
                                             borderRadius: '8px',
