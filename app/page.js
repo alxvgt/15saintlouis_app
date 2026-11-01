@@ -1,5 +1,6 @@
 'use client';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
+import {flushSync} from 'react-dom';
 
 import { priceForDate } from '@/lib/fixedPrices';
 
@@ -90,6 +91,10 @@ export default function Dashboard() {
     const [actionMode, setActionMode] = useState(null);
     const [minStayInput, setMinStayInput] = useState(2);
     const [multiplierInput, setMultiplierInput] = useState('');
+    // Champs de saisie des actions : focalisés (et clavier ouvert sur mobile) dès le clic sur le bouton
+    const minStayRef = useRef(null);
+    const multiplierRef = useRef(null);
+    const noteRef = useRef(null);
     const [notesOpen, setNotesOpen] = useState(false); // bloc « * Notes » (accordéon)
     const [noteInput, setNoteInput] = useState('');
     const [notes, setNotes] = useState({}); // { 'YYYY-MM-DD': 'texte' }
@@ -216,14 +221,28 @@ export default function Dashboard() {
     // Ouvre le mode prix / note en pré-remplissant avec la valeur existante si elle est commune aux jours sélectionnés
     const chooseMode = (mode) => {
         const days = calendarDays.filter(d => selectedDates.includes(d.date));
-        if (mode === 'setMultiplier') {
-            const ms = new Set(days.map(d => adjustmentPct(d)));
-            setMultiplierInput(ms.size === 1 ? String([...ms][0]) : '');
-        } else if (mode === 'note') {
-            const texts = new Set(selectedDates.map(d => notes[d] ?? ''));
-            setNoteInput(texts.size === 1 ? [...texts][0] : '');
+        // flushSync : le champ est rendu immédiatement, ce qui permet de le focaliser dans le même geste
+        // utilisateur (sinon le clavier ne s'ouvre pas sur mobile)
+        flushSync(() => {
+            if (mode === 'setMultiplier') {
+                const ms = new Set(days.map(d => adjustmentPct(d)));
+                setMultiplierInput(ms.size === 1 ? String([...ms][0]) : '');
+            } else if (mode === 'note') {
+                const texts = new Set(selectedDates.map(d => notes[d] ?? ''));
+                setNoteInput(texts.size === 1 ? [...texts][0] : '');
+            }
+            setActionMode(mode);
+        });
+
+        const el = mode === 'note' ? noteRef.current
+            : mode === 'setMinStay' ? minStayRef.current
+            : mode === 'setMultiplier' ? multiplierRef.current
+            : null;
+        if (el) {
+            el.focus();
+            if (mode === 'note') el.setSelectionRange(el.value.length, el.value.length); // curseur à la fin
+            else el.select(); // ajustement / min stay : tout sélectionné
         }
-        setActionMode(mode);
     };
 
     // Résultat de l'ajustement saisi, affiché à côté du champ (une fourchette si la sélection mélange plusieurs prix de base)
@@ -563,7 +582,7 @@ export default function Dashboard() {
                                             {actionMode === 'setMinStay' && (
                                                 <label style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
                                                     Séjour minimum
-                                                    <input type="number" min={1} max={365} value={minStayInput}
+                                                    <input ref={minStayRef} type="number" min={1} max={365} value={minStayInput}
                                                            onChange={e => setMinStayInput(parseInt(e.target.value))}
                                                            style={{
                                                                width: '60px',
@@ -579,7 +598,7 @@ export default function Dashboard() {
                                             {actionMode === 'setMultiplier' && (
                                                 <div style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
                                                     <span>Ajustement</span>
-                                                    <input type="number" min={25} max={250} step={1} value={multiplierInput}
+                                                    <input ref={multiplierRef} type="number" min={25} max={250} step={1} value={multiplierInput}
                                                            placeholder="100"
                                                            onChange={e => setMultiplierInput(e.target.value)}
                                                            style={{
@@ -596,7 +615,7 @@ export default function Dashboard() {
                                             )}
 
                                             {actionMode === 'note' && (
-                                                <textarea value={noteInput} rows={2} maxLength={500}
+                                                <textarea ref={noteRef} value={noteInput} rows={2} maxLength={500}
                                                           placeholder="Note interne"
                                                           onChange={e => setNoteInput(e.target.value)}
                                                           style={{
