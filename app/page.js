@@ -39,7 +39,7 @@ function getDayStatus(day) {
 }
 
 const STATUS_COLORS = {
-    available: {bg: '#4ade80', text: '#064e3b'},
+    available: {bg: '#4ade80', text: '#043528'},
     booked: {bg: '#ef4444', text: '#ffffff'},
     blocked: {bg: '#374151', text: '#ffffff'},
 };
@@ -433,7 +433,7 @@ export default function Dashboard() {
                                             marginTop: '1rem',
                                             padding: '0.5rem 1rem',
                                             backgroundColor: '#4ade80',
-                                            color: '#064e3b',
+                                            color: '#043528',
                                             border: 'none',
                                             borderRadius: '6px',
                                             cursor: 'pointer',
@@ -475,8 +475,8 @@ export default function Dashboard() {
                                     backgroundColor: '#f8fafc',
                                     border: '1px solid #e2e8f0',
                                     borderRadius: '12px',
-                                    padding: '1rem',
-                                    marginBottom: '1.5rem',
+                                    padding: '2vw',
+                                    marginBottom: '1vh',
 
                                 }}>
                                     <p style={{margin: '0 0 0.75rem 0', fontSize: '0.85rem', color: '#475569'}}>
@@ -507,7 +507,7 @@ export default function Dashboard() {
                                                     border: 'none',
                                                     cursor: selectedDates.length === 0 ? 'not-allowed' : 'pointer',
                                                     backgroundColor: actionMode === 'unblock' ? '#4ade80' : '#e2e8f0',
-                                                    color: actionMode === 'unblock' ? '#064e3b' : '#1a202c',
+                                                    color: actionMode === 'unblock' ? '#043528' : '#1a202c',
                                                     fontSize: '0.85rem',
                                                     opacity: selectedDates.length === 0 ? 0.5 : 1
                                                 }}>
@@ -563,11 +563,12 @@ export default function Dashboard() {
                                                        placeholder="100"
                                                        onChange={e => setMultiplierInput(e.target.value)}
                                                        style={{
-                                                           width: '70px',
+                                                           width: '30px',
                                                            padding: '5px 8px',
                                                            border: '1px solid #cbd5e0',
                                                            borderRadius: '6px',
-                                                           fontSize: '0.85rem'
+                                                           fontSize: '0.85rem',
+                                                           textAlign: 'center'
                                                        }}/>
                                                 <span style={{color: 'rgb(30, 41, 59)'}}>%</span>
                                                 {adjustmentResult && <strong style={{color: 'rgb(30, 41, 59)'}}>→ {adjustmentResult}</strong>}
@@ -695,7 +696,7 @@ export default function Dashboard() {
                                     <div style={{
                                         display: 'grid',
                                         gridTemplateColumns: 'repeat(7, 1fr)',
-                                        gap: '4px',
+                                        gap: '2px',
                                         marginBottom: '4px'
                                     }}>
                                         {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
@@ -746,13 +747,13 @@ export default function Dashboard() {
                                                     <span style={{
                                                         fontSize: '5vw',
                                                         fontWeight: 'bold',
-                                                        marginTop: '20%'
+                                                        marginTop: '27%'
                                                     }}>{dateObj.getDate()}</span>
                                                     {notes[day.date] && (
                                                         <span style={{
                                                             position: 'absolute',
-                                                            top: '3px',
-                                                            right: '3px',
+                                                            top: '0.3vh',
+                                                            right: '0.2vw',
                                                             fontSize: '2.5vw',
                                                             fontWeight: 'bold',
                                                             lineHeight: 1
