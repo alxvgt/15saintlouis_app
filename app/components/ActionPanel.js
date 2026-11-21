@@ -1,11 +1,11 @@
 'use client';
 import {useRef, useState} from 'react';
 import {flushSync} from 'react-dom';
-import {adjustmentPct, addDays, contiguousGroups, formatPrice, getDayStatus} from '@/lib/calendar';
+import {adjustmentPct, addDays, contiguousGroups, formatPrice, getDayStatus, multiplierPct} from '@/lib/calendar';
 import {isCancellable} from '@/lib/bookingRules';
 
 // Panneau d'actions partagé (vue par logement ET vue d'ensemble).
-// `targets` : [{ key, label, propId, roomId, dates: [...], days: [...], notes: {...} }]
+// `targets` : [{ key, label, propId, roomId, basePriceId, dates: [...], days: [...], notes: {...} }]
 // Chaque action est appliquée à chaque cible (= un logement) avec ses propres dates.
 // `onApplied(keys, {parts, partial})` : `parts` = ce qui a changé côté données (calendar, bookings, notes).
 export default function ActionPanel({targets, onApplied, onCancel, accent}) {
@@ -68,7 +68,7 @@ export default function ActionPanel({targets, onApplied, onCancel, accent}) {
         if (actionMode !== 'setMultiplier') return null;
         const m = Number(String(multiplierInput).replace(',', '.').replace('%', '').trim());
         if (multiplierInput === '' || !Number.isInteger(m) || m < 25 || m > 250) return null;
-        const bases = selectedDays.filter(d => d.price != null).map(d => d.price);
+        const bases = selectedDays.filter(d => d.fixedPrice != null).map(d => d.fixedPrice);
         if (bases.length === 0) return null;
         const lo = Math.round(Math.min(...bases) * m) / 100;
         const hi = Math.round(Math.max(...bases) * m) / 100;
@@ -163,10 +163,31 @@ export default function ActionPanel({targets, onApplied, onCancel, accent}) {
                 setError("Ajustement invalide : entier entre 25 et 250 (100 = prix normal, 106 = +6 %)");
                 return;
             }
-            // 100 % = pas d'ajustement : on supprime la valeur
-            return runOnTargets(beds24({multiplier: m === 100 ? null : m}), 'Jours modifiés');
+            return applyAdjustment(m);
         }
     };
+
+    // Ajustement de prix : daily price de base du jour = fixed price du jour × pourcentage.
+    // Le fixed price n'est jamais modifié ; le pourcentage est toujours calculé depuis lui (100 % = retour au fixed price).
+    const applyAdjustment = (pct) => runOnTargets(async (t) => {
+        if (t.basePriceId == null) {
+            return {success: false, error: "daily price de base introuvable (aucune règle, ou plusieurs règles non liées à une autre)"};
+        }
+        const byDate = new Map(t.days.map(d => [d.date, d]));
+        const noFixed = t.dates.filter(date => byDate.get(date)?.fixedPrice == null);
+        if (noFixed.length > 0) {
+            return {success: false, error: `aucun fixed price pour ${noFixed.slice(0, 6).join(', ')}${noFixed.length > 6 ? '…' : ''}`};
+        }
+        const dailyPrices = t.dates.map(date => {
+            const d = byDate.get(date);
+            return {
+                date,
+                price: Math.round(d.fixedPrice * pct) / 100,
+                resetMultiplier: multiplierPct(d) !== 100, // multiplicateur résiduel d'un ancien ajustement : remis à 100 %
+            };
+        });
+        return postJson('/api/beds24', {propId: t.propId, roomId: t.roomId, priceId: t.basePriceId, dailyPrices});
+    }, pct === 100 ? 'Prix remis au fixed price' : 'Prix ajustés');
 
     // Réservations (une seule fois chacune) couvrant les jours sélectionnés d'un logement
     const bookingsOf = (t) => {
@@ -225,7 +246,15 @@ export default function ActionPanel({targets, onApplied, onCancel, accent}) {
         }, cancelCount > 0 ? 'Réservation annulée et jours débloqués' : 'Jours débloqués', ['calendar', 'bookings']);
     };
 
-    const removeAdjustment = () => runOnTargets(beds24({multiplier: null}), 'Ajustement supprimé');
+    // Vide la sélection de dates (tous logements) et ferme l'action en cours
+    const clearSelection = () => {
+        setActionMode(null);
+        setError(null);
+        setSuccessMsg(null);
+        onCancel();
+    };
+
+    const removeAdjustment = () => applyAdjustment(100);
     const removeMinStay = () => runOnTargets(beds24({minStay: 1}), 'Séjour minimum remis à 1');
     const deleteNotes = () => runOnTargets(notesCall(''), 'Note supprimée', ['notes']);
 
@@ -283,6 +312,12 @@ export default function ActionPanel({targets, onApplied, onCancel, accent}) {
                         {a.label}
                     </button>
                 ))}
+                {!noSelection && (
+                    <button onClick={clearSelection} disabled={saving}
+                            style={{...btnStyle(false, '#64748b'), opacity: 1, cursor: saving ? 'wait' : 'pointer', backgroundColor: '#fff', border: '1px solid #cbd5e0'}}>
+                        ✕ Désélectionner
+                    </button>
+                )}
             </div>
 
             {(error || successMsg) && (
@@ -357,7 +392,7 @@ export default function ActionPanel({targets, onApplied, onCancel, accent}) {
                             <button onClick={removeMinStay} disabled={saving} style={dangerBtn}>Supprimer</button>
                         )}
                         {actionMode === 'setMultiplier' && selectedDays.some(d => adjustmentPct(d) !== 100) && (
-                            <button onClick={removeAdjustment} disabled={saving} style={dangerBtn}>Supprimer</button>
+                            <button onClick={removeAdjustment} disabled={saving} style={dangerBtn}>Remettre à 100 %</button>
                         )}
                         {actionMode === 'note' && hasNotes && (
                             <button onClick={deleteNotes} disabled={saving} style={dangerBtn}>Supprimer</button>

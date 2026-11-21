@@ -100,7 +100,7 @@ export async function GET(req) {
 export async function POST(req) {
     const body = await req.json();
     console.log("📥 [POST] Body reçu:", JSON.stringify(body));
-    const { propId, roomId, dates, override, minStay, multiplier } = body;
+    const { propId, roomId, dates, override, minStay, multiplier, priceId, dailyPrices } = body;
 
     // Ajustement de prix (multiplicateur du calendrier Beds24) : 25 à 250 (%), 100 = prix normal
     // multiplier: null = suppression de l'ajustement (retour au prix normal)
@@ -108,11 +108,28 @@ export async function POST(req) {
         return NextResponse.json({ success: false, error: 'Ajustement de prix invalide (entier entre 25 et 250)' }, { status: 400 });
     }
 
+    // Ajustement de prix : on écrit la daily price "de base" (price1..price16) de chaque jour
+    // dailyPrices: [{ date, price, resetMultiplier? }] ; priceId : numéro (1..16) de la daily price de base
+    if (dailyPrices !== undefined) {
+        const validId = Number.isInteger(Number(priceId)) && Number(priceId) >= 1 && Number(priceId) <= 16;
+        const validList = Array.isArray(dailyPrices) && dailyPrices.length > 0
+            && dailyPrices.every(p => /^\d{4}-\d{2}-\d{2}$/.test(p?.date) && Number.isFinite(Number(p.price)) && Number(p.price) >= 0);
+        if (!validId || !validList) {
+            return NextResponse.json({ success: false, error: 'Daily prices invalides (priceId 1..16 et liste date/prix requis)' }, { status: 400 });
+        }
+    }
+
     try {
         const payload = [
             {
                 roomId: parseInt(roomId),
-                calendar: dates.map(date => ({
+                calendar: dailyPrices !== undefined ? dailyPrices.map(p => ({
+                    from: p.date,
+                    to: p.date,
+                    [`price${Number(priceId)}`]: Math.round(Number(p.price) * 100) / 100,
+                    // multiplicateur résiduel d'un ancien ajustement : remis à 100 % (1.0001, voir plus bas)
+                    ...(p.resetMultiplier ? { multiplier: 1.0001 } : {}),
+                })) : dates.map(date => ({
                     from: date,
                     to: date,
                     ...(override !== undefined ? { override, ...(override === 'blackout' ? { numAvail: 0 } : {}) } : {}),

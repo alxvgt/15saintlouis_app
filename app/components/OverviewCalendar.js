@@ -100,11 +100,15 @@ export default function OverviewCalendar({rooms, store, load}) {
         onActiveChange: setDragging,
     }, !loading && dates.length > 0);
 
+    // Ordre d'affichage des lignes : « Le Grenier » au-dessus des autres logements (tri stable)
+    const displayRooms = [...rooms].sort((a, b) => /grenier/i.test(b.name) - /grenier/i.test(a.name));
+
     const targets = rooms.map(r => ({
         key: r.key,
         label: shortName(r.name),
         propId: r.propId,
         roomId: r.roomId,
+        basePriceId: r.basePriceId ?? null,
         dates: selection[r.key] ?? [],
         days: store[r.key]?.days ?? [],
         notes: store[r.key]?.notes ?? {},
@@ -204,7 +208,7 @@ export default function OverviewCalendar({rooms, store, load}) {
                                         })}
                                     </div>
 
-                                    {rooms.map(room => {
+                                    {displayRooms.map(room => {
                                         const theme = themeFor(room);
                                         const selected = new Set(selection[room.key] ?? []);
                                         const notes = store[room.key]?.notes ?? {};

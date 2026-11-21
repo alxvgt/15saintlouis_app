@@ -84,6 +84,7 @@ export default function Dashboard() {
         label: shortName(selectedRoom.name),
         propId: selectedRoom.propId,
         roomId: selectedRoom.roomId,
+        basePriceId: selectedRoom.basePriceId ?? null,
         dates: selectedDates,
         days: calendarDays,
         notes,
